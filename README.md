@@ -10,7 +10,7 @@ pip install git+https://github.com/garicchi/ttt.git
 
 ## VIEW
 
-before
+sample.tsv
 ```
 col1	col2	col3
 val1-1	val2-1	val3-1
@@ -45,7 +45,7 @@ val2-2	val2-3
 val3-2	val3-3
 ```
 
-ソート
+昇順ソート
 ```
 $ ttt view -s col2 sample/sample.tsv 
 col1  	col2  	col3  
@@ -54,7 +54,7 @@ val2-1	val2-2	val2-3
 val3-1	val3-2	val3-3
 ```
 
-逆順ソート
+降順ソート
 ```
 $ ttt view -s col2 -r sample/sample.tsv 
 col1  	col2  	col3  
@@ -63,3 +63,18 @@ val2-1	val2-2	val2-3
 val1-1	val2-1	val3-1
 ```
 
+テーブルのjoin
+sample02.tsv
+```
+other1	other2
+val1-1	other-2-1
+val2-1	other-2-2
+val3-1	other-2-3
+```
+```
+$ ttt view -on col1=other1 sample/sample.tsv sample/sample02.tsv 
+col1  	col2  	col3  	other1	other2   
+val1-1	val2-1	val3-1	val1-1	other-2-1
+val2-1	val2-2	val2-3	val2-1	other-2-2
+val3-1	val3-2	val3-3	val3-1	other-2-3
+```
