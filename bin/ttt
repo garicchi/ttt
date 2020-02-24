@@ -479,7 +479,7 @@ if __name__ == '__main__':
     parser_edit_column.add_argument('INPUT_FILE', type=str, help='tsv path to edit data')
     parser_edit_column.set_defaults(func=cmd_edit)
 
-    parser_resolve = subparsers.add_parser('resolve', help='convert conflict marker of human readable')
+    parser_resolve = subparsers.add_parser('resolve', help='convert conflict marker to human readable')
     parser_resolve.add_argument('-k', '--key', type=str, required=False, help='key column name that identifying unique row(if not specify, then use most left column)')
     parser_resolve.add_argument('-o', '--output', type=str, required=False, help='file to output result')
     parser_resolve.add_argument('INPUT_FILE', type=str, help='tsv path of conflicting')
