@@ -83,9 +83,8 @@ val2-1	val2-2	val2-3
 val1-1	val2-1	val3-1
 ```
 
-テーブルのjoin
-sample02.tsv
-```
+テーブルのjoin (left join)
+```sample02.tsv
 other1	other2
 val1-1	other-2-1
 val2-1	other-2-2
