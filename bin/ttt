@@ -61,10 +61,10 @@ class TableData:
         sort_col_pos = self.head.index(column)
         is_numeric = True
         try:
-            float(self.table.rows[0][sort_col_pos])
+            float(self.rows[0][sort_col_pos])
         except ValueError:
             is_numeric = False
-        self.table.rows.sort(key=lambda x: float(x[sort_col_pos]) if is_numeric else x[sort_col_pos], reverse=reverse)
+        self.rows.sort(key=lambda x: float(x[sort_col_pos]) if is_numeric else x[sort_col_pos], reverse=reverse)
 
     def add_column(self, name: str, default: str = '', before: str = None):
         if before:
