@@ -78,3 +78,14 @@ val1-1	val2-1	val3-1	val1-1	other-2-1
 val2-1	val2-2	val2-3	val2-1	other-2-2
 val3-1	val3-2	val3-3	val3-1	other-2-3
 ```
+
+結果のtsv書き出し
+```
+$ ttt view sample/sample.tsv -o sample/sample03.tsv
+save completed in sample/sample03.tsv
+```
+
+## RESOLVE
+コンフリクトしたtsvをわかりやすいマーカーに変えます
+
+
