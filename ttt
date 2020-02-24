@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 from pathlib import Path
 import argparse
 from typing import List, Tuple
@@ -90,7 +90,8 @@ class TableData:
                 row[edit_pos] = edit_data
                 is_modify = True
         if not is_modify:
-            raise Exception(f'{key_column}に{key_data}はありませんでした')
+            print(f'{key_data} is not found in {key_column} column', file=sys.stderr)
+            exit(1)
 
     def _insert_conflict_marker(self, key_pos: int, rev_1: str, head_1: List[str], body_1: List[str],
                                 rev_2: str, head_2: List[str], body_2: List[str]) -> Tuple[List[str], List[List[str]]]:
@@ -311,6 +312,11 @@ def cmd_add_column(args):
 
     table = TableData()
     table.load(input_file)
+
+    if before and before not in table.head:
+        print(f'{before} is not found in header', file=sys.stderr)
+        exit(1)
+
     table.add_column(name, default, before)
 
     if output:
@@ -327,6 +333,11 @@ def cmd_remove_column(args):
 
     table = TableData()
     table.load(input_file)
+
+    if name and name not in table.head:
+        print(f'{name} is not found in header', file=sys.stderr)
+        exit(1)
+
     table.remove_column(name)
 
     if output:
@@ -346,6 +357,15 @@ def cmd_edit(args):
 
     table = TableData()
     table.load(input_file)
+
+    if key_column and key_column not in table.head:
+        print(f'{key_column} is not found in header', file=sys.stderr)
+        exit(1)
+
+    if edit_column and edit_column not in table.head:
+        print(f'{edit_column} is not found in header', file=sys.stderr)
+        exit(1)
+
     table.edit_data(key_column, key_data, edit_column, edit_data)
 
     if output:
@@ -403,8 +423,13 @@ def cmd_resolve(args):
     table = TableData()
     table.load(input_file)
     if not table.is_conflict:
-        print(f'{input_file} はコンフリクトしていません', file=sys.stderr)
+        print(f'{input_file} is not conflict', file=sys.stderr)
         exit(1)
+        
+    if key and key not in table.head:
+        print(f'{key} is not found in header', file=sys.stderr)
+        exit(1)
+
 
     table.resolve(key)
 
@@ -421,43 +446,43 @@ if __name__ == '__main__':
     subparsers.required = True  # sub commandを指定してないときにhelpを表示するために必要
     subparsers.dest = 'SUB_COMMAND'  # sub commandを指定してないときにhelpを表示するために必要
 
-    parser_view = subparsers.add_parser('view', help='tsvを表示します')
-    parser_view.add_argument('-c', '--column', type=str, action='append', required=False, help='表示するカラム(複数指定可能)')
-    parser_view.add_argument('-on', type=str, required=False, help='複数ファイル指定時の結合キーとなるカラム(col1=col2...)')
-    parser_view.add_argument('-s', '--sort', type=str, required=False, help='ソートするカラム名')
-    parser_view.add_argument('-r', '--reverse', action='store_true', help='ソート時のオーダーを逆にする')
-    parser_view.add_argument('--header', action='store_true', help='ヘッダーのみ表示する')
-    parser_view.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
-    parser_view.add_argument('INPUT_FILE', type=str, nargs='+', help='表示するtsvファイル。複数指定の場合結合する')
+    parser_view = subparsers.add_parser('view', help='show tsv file')
+    parser_view.add_argument('-c', '--column', type=str, action='append', required=False, help='column name to display(avairable to specify multipe value)')
+    parser_view.add_argument('-on', type=str, required=False, help='condition for join multiple files(col1=col2...)')
+    parser_view.add_argument('-s', '--sort', type=str, required=False, help='column name for sorting rows')
+    parser_view.add_argument('-r', '--reverse', action='store_true', help='order direction for sorting rows')
+    parser_view.add_argument('--header', action='store_true', help='only show header')
+    parser_view.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_view.add_argument('INPUT_FILE', type=str, nargs='+', help='tsv path to display(if spcify mutiple values, then join rows with condition of -on parameter)')
     parser_view.set_defaults(func=cmd_view)
 
-    parser_add_column = subparsers.add_parser('add-column', help='tsvにカラムを追加します')
-    parser_add_column.add_argument('-n', '--name', type=str, required=True, help='追加するカラムの名前')
-    parser_add_column.add_argument('-d', '--default', type=str, default='', help='カラムのデフォルト値')
-    parser_add_column.add_argument('-b', '--before', type=str, required=False, help='どのカラムの前につけるか(指定をしないと一番最後につく)')
-    parser_add_column.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
-    parser_add_column.add_argument('INPUT_FILE', type=str, help='カラムを付け足すtsvファイル')
+    parser_add_column = subparsers.add_parser('add-column', help='add column to tsv file')
+    parser_add_column.add_argument('-n', '--name', type=str, required=True, help='column name to add')
+    parser_add_column.add_argument('-d', '--default', type=str, default='', help='default value of adding column')
+    parser_add_column.add_argument('-b', '--before', type=str, required=False, help='column name of insert position(if not specify, then column add last position)')
+    parser_add_column.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_add_column.add_argument('INPUT_FILE', type=str, help='tsv file to add column')
     parser_add_column.set_defaults(func=cmd_add_column)
 
-    parser_remove_column = subparsers.add_parser('remove-column', help='tsvのカラムを削除します')
-    parser_remove_column.add_argument('-n', '--name', type=str, required=True, help='削除するカラム名')
-    parser_remove_column.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
-    parser_remove_column.add_argument('INPUT_FILE', type=str, help='カラムを削除するtsvファイル')
+    parser_remove_column = subparsers.add_parser('remove-column', help='remove column to tsv file')
+    parser_remove_column.add_argument('-n', '--name', type=str, required=True, help='column name to remove')
+    parser_remove_column.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_remove_column.add_argument('INPUT_FILE', type=str, help='tsv path to remove column')
     parser_remove_column.set_defaults(func=cmd_remove_column)
 
-    parser_edit_column = subparsers.add_parser('edit', help='tsvの値を変更します')
-    parser_edit_column.add_argument('-kc', '--key-column', type=str, required=True, help='編集する行のキーとなるカラム名')
-    parser_edit_column.add_argument('-kd', '--key-data', type=str, required=True, help='編集する行のキーとなるデータ値')
-    parser_edit_column.add_argument('-ec', '--edit-column', type=str, required=True, help='編集する列のカラム名')
-    parser_edit_column.add_argument('-ed', '--edit-data', type=str, required=True, help='変更したいセルの新しいデータ値')
-    parser_edit_column.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
-    parser_edit_column.add_argument('INPUT_FILE', type=str, help='カラムを削除するtsvファイル')
+    parser_edit_column = subparsers.add_parser('edit', help='edit value in tsv file')
+    parser_edit_column.add_argument('-kc', '--key-column', type=str, required=True, help='key column name for editing value')
+    parser_edit_column.add_argument('-kd', '--key-data', type=str, required=True, help='key value for editing value')
+    parser_edit_column.add_argument('-ec', '--edit-column', type=str, required=True, help='column name of editing column')
+    parser_edit_column.add_argument('-ed', '--edit-data', type=str, required=True, help='value of editing')
+    parser_edit_column.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_edit_column.add_argument('INPUT_FILE', type=str, help='tsv path to edit data')
     parser_edit_column.set_defaults(func=cmd_edit)
 
-    parser_resolve = subparsers.add_parser('resolve', help='コンフリクトしたtsvをわかりやすい形に変換します')
-    parser_resolve.add_argument('-k', '--key', type=str, required=False, help='レコードを一意に特定するキーカラム名(指定しないと一番左のカラムを使う)')
-    parser_resolve.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
-    parser_resolve.add_argument('INPUT_FILE', type=str, help='コンフリクトしたtsvファイル')
+    parser_resolve = subparsers.add_parser('resolve', help='convert conflict marker of human readable')
+    parser_resolve.add_argument('-k', '--key', type=str, required=False, help='key column name that identifying unique row(if not specify, then use most left column)')
+    parser_resolve.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_resolve.add_argument('INPUT_FILE', type=str, help='tsv path of conflicting')
     parser_resolve.set_defaults(func=cmd_resolve)
 
     args = parser.parse_args()
