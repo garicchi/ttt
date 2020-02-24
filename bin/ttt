@@ -296,6 +296,7 @@ class TableData:
         result = [delim.join([f'{x:{max_cell_len[i]}}' for i, x in enumerate(self.head)])]
         if header_only:
             result = [result[0].replace(delim, '\n')]
+            result = [x.rstrip(' ') for x in result]
         else:
             for row in self.rows:
                 result_row = delim.join([f'{row[i]:{max_cell_len[i]}}' for i, x in enumerate(self.head) if i < len(row)])
