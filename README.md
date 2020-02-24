@@ -88,4 +88,33 @@ save completed in sample/sample03.tsv
 ## RESOLVE
 コンフリクトしたtsvをわかりやすいマーカーに変えます
 
+sample.tsv(コンフリクト状態)
 
+HEADで行が増え、test/01でカラムが増えた状態
+```
+<<<<<<< HEAD
+col1	col2	col3
+val1-1	val2-1	val3-1
+val2-1	val2-2	val2-3
+add-row01	add-row01	add-row01
+val3-1	val3-2	val3-3
+=======
+col1	col2	col3	add01
+val1-1	val2-1	val3-1	01
+val2-1	val2-2	val2-3	01
+val3-1	val3-2	val3-3	01
+>>>>>>> test/01
+```
+
+```
+$ ttt resolve sample/sample.tsv 
+col1           	col2     	col3     	add01             
+val1-1         	val2-1   	val3-1   	<< 01 >> [test/01]
+val2-1         	val2-2   	val2-3   	<< 01 >> [test/01]
+<<<<<<< test/01
+=======        
+add-row01      	add-row01	add-row01
+>>>>>>> HEAD   
+val3-1         	val3-2   	val3-3   	<< 01 >> [test/01]
+
+```
