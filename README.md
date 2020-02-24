@@ -1,6 +1,26 @@
 # ttt
 ttt: togai tsv tool
 
+```
+$ ttt -h
+usage: ttt [-h] {view,add-column,remove-column,edit,resolve} ...
+
+togai tsv tool
+
+positional arguments:
+  {view,add-column,remove-column,edit,resolve}
+                        sub-commands
+    view                show tsv file
+    add-column          add column to tsv file
+    remove-column       remove column to tsv file
+    edit                edit value in tsv file
+    resolve             convert conflict marker to human readable
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+```
+
 ## INSTALL
 
 required python 3.6 or later
