@@ -464,7 +464,7 @@ if __name__ == '__main__':
     parser_add_column.add_argument('INPUT_FILE', type=str, help='tsv file to add column')
     parser_add_column.set_defaults(func=cmd_add_column)
 
-    parser_remove_column = subparsers.add_parser('remove-column', help='remove column to tsv file')
+    parser_remove_column = subparsers.add_parser('remove-column', help='remove column from tsv file')
     parser_remove_column.add_argument('-n', '--name', type=str, required=True, help='column name to remove')
     parser_remove_column.add_argument('-o', '--output', type=str, required=False, help='file to output result')
     parser_remove_column.add_argument('INPUT_FILE', type=str, help='tsv path to remove column')

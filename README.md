@@ -12,7 +12,7 @@ positional arguments:
                         sub-commands
     view                show tsv file
     add-column          add column to tsv file
-    remove-column       remove column to tsv file
+    remove-column       remove column from tsv file
     edit                edit value in tsv file
     resolve             convert conflict marker to human readable
 
