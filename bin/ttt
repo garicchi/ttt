@@ -58,7 +58,7 @@ class TableData:
                 row += ['' for x in table.head]
 
     def sort(self, column: str, reverse: bool = False):
-        sort_col_pos = self.table.head.index(column)
+        sort_col_pos = self.head.index(column)
         is_numeric = True
         try:
             float(self.table.rows[0][sort_col_pos])
