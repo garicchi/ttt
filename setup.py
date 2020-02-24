@@ -14,5 +14,5 @@ setup(
     author_email='xgaricchi@gmail.com',
     python_requires='>=3.6',
     license='MIT',
-    scripts=['ttt']
+    scripts=['bin/ttt']
 )
