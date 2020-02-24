@@ -1,0 +1,465 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import argparse
+from typing import List, Tuple
+import copy
+import sys
+import re
+
+
+class TableData:
+    def __init__(self):
+        self.head = []
+        self.rows = []
+        self.is_conflict = False
+
+    def load(self, file_path: Path, delim='\t'):
+        with open(file_path) as f:
+            self.head = f.readline().rstrip('\n').split(delim)
+            lines = f.readlines()
+            self.rows = []
+            self.is_conflict = False
+            for l in lines:
+                cells = l.rstrip('\n').split(delim)
+                if ''.join(cells) == '=======':
+                    self.is_conflict = True
+                self.rows.append(cells)
+            if self.is_conflict:
+                marker_begin = re.compile(r'^<<<<<<< .*$')
+                # これはヘッダーもコンフリクトしてるパターン
+                if marker_begin.search(self.head[0]):
+                    tmp = self.head
+                    self.head = self.rows[0]
+                    self.rows.insert(0, tmp)
+
+    def save(self, file_path: Path, delim='\t', header_only: bool = False):
+        with open(file_path, 'w') as f:
+            result = [delim.join([f'{x}' for i, x in enumerate(self.head)])]
+            if header_only:
+                result = [result[0].replace(delim, '\t')]
+            else:
+                for row in self.rows:
+                    result_row = delim.join([f'{row[i]}' for i, x in enumerate(self.head)])
+                    result.append(result_row)
+            f.write('\n'.join(result) + '\n')
+
+    def join(self, table, on_col_our: str, on_col_their: str):
+        on_col_our_pos = self.head.index(on_col_our)
+        on_col_their_pos = table.head.index(on_col_their)
+        self.head += table.head
+        for index, row in enumerate(self.rows):
+            their_row = [x for x in table.rows if x[on_col_their_pos] == row[on_col_our_pos]]
+            if their_row:
+                if len(their_row) > 1:
+                    their_row.pop()
+                their_row = their_row[0]
+                row += their_row
+            else:
+                row += ['' for x in table.head]
+
+    def sort(self, column: str, reverse: bool = False):
+        sort_col_pos = self.table.head.index(column)
+        is_numeric = True
+        try:
+            float(self.table.rows[0][sort_col_pos])
+        except ValueError:
+            is_numeric = False
+        self.table.rows.sort(key=lambda x: float(x[sort_col_pos]) if is_numeric else x[sort_col_pos], reverse=reverse)
+
+    def add_column(self, name: str, default: str = '', before: str = None):
+        if before:
+            insert_pos = self.head.index(before)
+        else:
+            insert_pos = len(self.head)
+        self.head.insert(insert_pos, name)
+        for row in self.rows:
+            row.insert(insert_pos, default)
+
+    def remove_column(self, name: str):
+        pos = self.head.index(name)
+        del self.head[pos]
+        for row in self.rows:
+            del row[pos]
+
+    def edit_data(self, key_column: str, key_data: str, edit_column: str, edit_data: str):
+        key_pos = self.head.index(key_column)
+        edit_pos = self.head.index(edit_column)
+        is_modify = False
+        for row in self.rows:
+            if row[key_pos] == key_data:
+                row[edit_pos] = edit_data
+                is_modify = True
+        if not is_modify:
+            raise Exception(f'{key_column}に{key_data}はありませんでした')
+
+    def _insert_conflict_marker(self, key_pos: int, rev_1: str, head_1: List[str], body_1: List[str],
+                                rev_2: str, head_2: List[str], body_2: List[str]) -> Tuple[List[str], List[List[str]]]:
+        '''
+        2組のヘッダーと行をセルレベルで比較してコンフリクトマーカーをつける
+        :param key_pos: 行を一意に識別するキーカラム名(primary key)
+        :return:
+        '''
+        # 行が多い方のデータを判定する
+        many_body = body_1
+        less_body = body_2
+        many_rev = rev_1
+        less_rev = rev_2
+        if len(body_1) < len(body_2):
+            many_body = body_2
+            less_body = body_1
+            many_rev = rev_2
+            less_rev = rev_1
+
+        less_keys = [x[key_pos] for x in less_body]
+
+        many_col_head = head_1
+        less_col_head = head_2
+        if len(head_1) < len(head_2):
+            many_col_head = head_2
+            less_col_head = head_1
+
+        # カラム追加が何番目のカラムかを把握する
+        add_col_indexes = []  # many_col_headの何番目が追加カラムか
+        many_cur = 0
+        less_cur = 0
+        for i in range(len(many_col_head)):
+            if less_cur > len(less_col_head) - 1:
+                add_col_indexes.append(many_cur)
+                many_cur += 1
+                less_cur += 1
+                continue
+            if many_col_head[many_cur] != less_col_head[less_cur]:
+                add_col_indexes.append(many_cur)
+                many_cur += 1
+                continue
+            many_cur += 1
+            less_cur += 1
+
+        # 行数が多い方の1行に対し、キーが一致している行が少ない方を比較していき、コンフリクトを解決していく
+        resolved_rows = []
+        for many_body_row in many_body:
+            many_key = many_body_row[key_pos]
+            for less_body_row in less_body:
+                less_key = less_body_row[key_pos]
+                if many_key == less_key:
+                    # 行の値が異なるパターン(一致するキーがあった)
+                    # カラムはどちらが多いかを把握
+                    many_col_rev = many_rev
+                    less_col_rev = less_rev
+                    many_col_row = many_body_row
+                    less_col_row = less_body_row
+                    if len(many_body_row) < len(less_body_row):
+                        many_col_rev = less_rev
+                        less_col_rev = many_rev
+                        many_col_row = less_body_row
+                        less_col_row = many_body_row
+
+                    # カラムの数が違う場合、カラム追加のコンフリクトマーカーを置く
+                    resolved_row = []
+                    less_cur = 0
+                    for i in range(len(many_col_head)):
+                        if less_cur > len(less_col_head) - 1:
+                            resolved_row.append(f'<< {many_col_row[i]} >> [{many_col_rev}]')
+                            continue
+                        if i in add_col_indexes:
+                            resolved_row.append(f'<< {many_col_row[i]} >> [{many_col_rev}]')
+                            continue
+                        resolved_row.append(less_col_row[less_cur])
+                        less_cur += 1
+                    # 各セルの値が異なるかどうか判定
+                    is_different_row = False
+                    less_cur = 0
+                    for i in range(len(less_col_row)):
+                        if i > len(less_col_head) - 1:
+                            continue
+                        if i in add_col_indexes:
+                            continue
+                        if many_col_row[i] != less_col_row[less_cur]:
+                            is_different_row = True
+                            break
+                        less_cur += 1
+
+                    if is_different_row:
+                        # セルの値が違うならコンフリクトマーカーをつける
+                        resolved_rows.append([f'<<<<<<< {many_col_rev}'])
+                        resolved_rows.append(many_col_row)
+                        resolved_rows.append([f'======='])
+                        resolved_rows.append(resolved_row)
+                        resolved_rows.append([f'>>>>>>> {less_col_rev}'])
+                    else:
+                        # セルの値が一致しているならそのまま返す
+                        resolved_rows.append(resolved_row)
+                    break
+                elif many_key not in less_keys:
+                    # 行追加パターン(行が多い方のキーが少ない方になかった)
+                    resolved_rows.append([f'<<<<<<< {less_rev}'])
+                    resolved_rows.append([f'======='])
+                    resolved_rows.append(many_body_row)
+                    resolved_rows.append([f'>>>>>>> {many_rev}'])
+                    break
+
+        return many_col_head, resolved_rows
+
+    def resolve(self, key=None):
+        '''
+        コンフリクトしたtsvファイルを見やすい形式に書き換える
+        :param key: tsvの行を一意に特定するカラム名(primary key)
+        :return:
+        '''
+        # キーが指定されないときは一番左のカラムをキーとする
+        key_pos = self.head.index(key) if key else 0
+
+        marker_begin = re.compile(r'^<<<<<<< .*$')
+        marker_middle = re.compile(r'^=======$')
+        marker_end = re.compile(r'^>>>>>>> .*$')
+        rev_begin = None  # 開始マーカーのついているリビジョン
+        rev_end = None  # 終了マーカーのついているリビジョン
+        before_middle = True
+        rows_begin = []  # 開始マーカーから中間マーカーまでの行
+        rows_end = []  # 中間マーカーから終了マーカーまでの行
+        resolved_body = []  # 変換後の行
+        resolved_head = []  # 変換後のヘッダー
+        # マーカーを識別してコンフリクト部分をわかりやすい形に変換する
+        for row in self.rows:
+            if marker_begin.search(row[0]):
+                rev_begin = row[0].lstrip('<<<<<<< ')
+                rev_end = None
+                before_middle = True
+                rows_begin = []
+                rows_end = []
+                continue
+
+            if marker_middle.search(row[0]):
+                before_middle = False
+                continue
+
+            # 終了マーカーを検出したらコンフリクトを処理する
+            if marker_end.search(row[0]):
+                rev_end = row[0].lstrip('>>>>>>> ')
+
+                if self.head == rows_begin[0]:
+                    # テーブル全体がコンフリクトしている場合(カラム追加パターン)
+                    head_begin = rows_begin[0]
+                    body_begin = rows_begin[1:]
+                    head_end = rows_end[0]
+                    body_end = rows_end[1:]
+                    # コンフリクトしている部分をセルレベルで比較して変換する(同一キーを持つ行は同じ行として比較する)
+                    if rev_begin == 'HEAD':
+                        resolved_head, partial_resolved = self._insert_conflict_marker(key_pos, rev_begin, head_begin, body_begin, rev_end, head_end, body_end)
+                    else:
+                        resolved_head, partial_resolved = self._insert_conflict_marker(key_pos, rev_end, head_end, body_end, rev_begin, head_begin, body_begin)
+                    resolved_body += partial_resolved
+                else:
+                    # テーブルの一部がコンフリクトしている場合(カラム追加が無いパターン)
+                    head_begin = self.head
+                    body_begin = rows_begin
+                    head_end = self.head
+                    body_end = rows_end
+                    # コンフリクトしている部分をセルレベルで比較して変換する(同一キーを持つ行は同じ行として比較する)
+                    if rev_begin == 'HEAD':
+                        resolved_head, partial_resolved = self._insert_conflict_marker(key_pos, rev_begin, head_begin, body_begin, rev_end, head_end, body_end)
+                    else:
+                        resolved_head, partial_resolved = self._insert_conflict_marker(key_pos, rev_end, head_end, body_end, rev_begin, head_begin, body_begin)
+                    resolved_body += partial_resolved
+
+                rev_begin = None
+                rev_end = None
+
+                continue
+
+            if rev_begin and before_middle:
+                rows_begin.append(row)
+
+            if rev_begin and not before_middle:
+                rows_end.append(row)
+
+            # コンフリクトしてない部分についてはなにもしない
+            if not rev_begin and not rev_end:
+                resolved_body.append(row)
+
+        self.head = resolved_head
+        self.rows = resolved_body
+
+    def get_format_str(self, delim='\t', header_only: bool = False):
+        '''
+        コンソールに表示しやすいstr形式に変換する
+        :param delim: 区切り文字
+        :param header_only: ヘッダーのみ表示する場合
+        :return:
+        '''
+        max_cell_len = []
+        for i, h in enumerate(self.head):
+            candidates = [len(h)]
+            candidates += [len(row[i]) for row in self.rows if i < len(row)]
+            max_cell_len.append(max(candidates))
+        result = [delim.join([f'{x:{max_cell_len[i]}}' for i, x in enumerate(self.head)])]
+        if header_only:
+            result = [result[0].replace(delim, '\n')]
+        else:
+            for row in self.rows:
+                result_row = delim.join([f'{row[i]:{max_cell_len[i]}}' for i, x in enumerate(self.head) if i < len(row)])
+                result.append(result_row)
+        return '\n'.join(result)
+
+
+def cmd_add_column(args):
+    input_file: str = args.INPUT_FILE
+    name: str = args.name
+    default: str = args.default
+    before: str = args.before
+    output: str = args.output
+
+    table = TableData()
+    table.load(input_file)
+    table.add_column(name, default, before)
+
+    if output:
+        table.save(Path(output))
+        print(f'save completed in {output}')
+    else:
+        print(table.get_format_str())
+
+
+def cmd_remove_column(args):
+    input_file: str = args.INPUT_FILE
+    name: str = args.name
+    output: str = args.output
+
+    table = TableData()
+    table.load(input_file)
+    table.remove_column(name)
+
+    if output:
+        table.save(Path(output))
+        print(f'save completed in {output}')
+    else:
+        print(table.get_format_str())
+
+
+def cmd_edit(args):
+    input_file: str = args.INPUT_FILE
+    key_column: str = args.key_column
+    key_data: str = args.key_data
+    edit_column: str = args.edit_column
+    edit_data: str = args.edit_data
+    output: str = args.output
+
+    table = TableData()
+    table.load(input_file)
+    table.edit_data(key_column, key_data, edit_column, edit_data)
+
+    if output:
+        table.save(Path(output))
+        print(f'save completed in {output}')
+    else:
+        print(table.get_format_str())
+
+
+def cmd_view(args):
+    input_files: List[str] = args.INPUT_FILE
+    columns: List[str] = args.column
+    sort: List[str] = args.sort
+    reverse: bool = args.reverse
+    on: str = args.on
+    header: bool = args.header
+    output: str = args.output
+    table = TableData()
+
+    for index, input_file in enumerate(input_files):
+        if index == 0:
+            table.load(Path(input_file))
+        else:
+            t = TableData()
+            t.load(Path(input_file))
+            if on:
+                on_list = on.split('=')
+                on_col_our = on_list[0]
+                on_col_their = on_list[index]
+            else:
+                on_col_our = table.head[0]
+                on_col_their = t.head[0]
+            table.join(t, on_col_our=on_col_our, on_col_their=on_col_their)
+
+    if columns:
+        original_head = copy.deepcopy(table.head)
+        for h in original_head:
+            if h not in columns:
+                table.remove_column(h)
+
+    if sort:
+        table.sort(sort, reverse)
+
+    if output:
+        table.save(Path(output), header_only=header)
+        print(f'save completed in {output}')
+    else:
+        print(table.get_format_str(header_only=header))
+
+
+def cmd_resolve(args):
+    input_file: str = args.INPUT_FILE
+    key: str = args.key
+    output: str = args.output
+    table = TableData()
+    table.load(input_file)
+    if not table.is_conflict:
+        print(f'{input_file} はコンフリクトしていません', file=sys.stderr)
+        exit(1)
+
+    table.resolve(key)
+
+    if output:
+        table.save(Path(output))
+        print(f'save completed in {output}')
+    else:
+        print(table.get_format_str())
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='togai tsv tool')
+    subparsers = parser.add_subparsers(help='sub-commands')
+    subparsers.required = True  # sub commandを指定してないときにhelpを表示するために必要
+    subparsers.dest = 'SUB_COMMAND'  # sub commandを指定してないときにhelpを表示するために必要
+
+    parser_view = subparsers.add_parser('view', help='tsvを表示します')
+    parser_view.add_argument('-c', '--column', type=str, action='append', required=False, help='表示するカラム(複数指定可能)')
+    parser_view.add_argument('-on', type=str, required=False, help='複数ファイル指定時の結合キーとなるカラム(col1=col2...)')
+    parser_view.add_argument('-s', '--sort', type=str, required=False, help='ソートするカラム名')
+    parser_view.add_argument('-r', '--reverse', action='store_true', help='ソート時のオーダーを逆にする')
+    parser_view.add_argument('--header', action='store_true', help='ヘッダーのみ表示する')
+    parser_view.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
+    parser_view.add_argument('INPUT_FILE', type=str, nargs='+', help='表示するtsvファイル。複数指定の場合結合する')
+    parser_view.set_defaults(func=cmd_view)
+
+    parser_add_column = subparsers.add_parser('add-column', help='tsvにカラムを追加します')
+    parser_add_column.add_argument('-n', '--name', type=str, required=True, help='追加するカラムの名前')
+    parser_add_column.add_argument('-d', '--default', type=str, default='', help='カラムのデフォルト値')
+    parser_add_column.add_argument('-b', '--before', type=str, required=False, help='どのカラムの前につけるか(指定をしないと一番最後につく)')
+    parser_add_column.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
+    parser_add_column.add_argument('INPUT_FILE', type=str, help='カラムを付け足すtsvファイル')
+    parser_add_column.set_defaults(func=cmd_add_column)
+
+    parser_remove_column = subparsers.add_parser('remove-column', help='tsvのカラムを削除します')
+    parser_remove_column.add_argument('-n', '--name', type=str, required=True, help='削除するカラム名')
+    parser_remove_column.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
+    parser_remove_column.add_argument('INPUT_FILE', type=str, help='カラムを削除するtsvファイル')
+    parser_remove_column.set_defaults(func=cmd_remove_column)
+
+    parser_edit_column = subparsers.add_parser('edit', help='tsvの値を変更します')
+    parser_edit_column.add_argument('-kc', '--key-column', type=str, required=True, help='編集する行のキーとなるカラム名')
+    parser_edit_column.add_argument('-kd', '--key-data', type=str, required=True, help='編集する行のキーとなるデータ値')
+    parser_edit_column.add_argument('-ec', '--edit-column', type=str, required=True, help='編集する列のカラム名')
+    parser_edit_column.add_argument('-ed', '--edit-data', type=str, required=True, help='変更したいセルの新しいデータ値')
+    parser_edit_column.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
+    parser_edit_column.add_argument('INPUT_FILE', type=str, help='カラムを削除するtsvファイル')
+    parser_edit_column.set_defaults(func=cmd_edit)
+
+    parser_resolve = subparsers.add_parser('resolve', help='コンフリクトしたtsvをわかりやすい形に変換します')
+    parser_resolve.add_argument('-k', '--key', type=str, required=False, help='レコードを一意に特定するキーカラム名(指定しないと一番左のカラムを使う)')
+    parser_resolve.add_argument('-o', '--output', type=str, required=False, help='結果をファイルに出力する')
+    parser_resolve.add_argument('INPUT_FILE', type=str, help='コンフリクトしたtsvファイル')
+    parser_resolve.set_defaults(func=cmd_resolve)
+
+    args = parser.parse_args()
+
+    args.func(args)
