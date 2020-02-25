@@ -26,11 +26,15 @@ class TableData:
                 self.rows.append(cells)
             if self.is_conflict:
                 marker_begin = re.compile(r'^<<<<<<< .*$')
+                marker_middle = re.compile(r'^=======$')
                 # これはヘッダーもコンフリクトしてるパターン
                 if marker_begin.search(self.head[0]):
-                    tmp = self.head
-                    self.head = self.rows[0]
-                    self.rows.insert(0, tmp)
+                    many_head = self.head
+                    for i, row in enumerate(self.rows):
+                        if marker_middle.search(row[0]):
+                            many_head = row[i + 1]
+                    self.head = many_head
+                    self.rows.insert(0, self.head)
 
     def save(self, file_path: Path, delim='\t', header_only: bool = False):
         with open(file_path, 'w') as f:
