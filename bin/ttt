@@ -39,7 +39,7 @@ class TableData:
                 result = [result[0].replace(delim, '\t')]
             else:
                 for row in self.rows:
-                    result_row = delim.join([f'{row[i]}' for i, x in enumerate(self.head)])
+                    result_row = delim.join([f'{row[i]}' for i, x in enumerate(self.head) if i < len(row)])
                     result.append(result_row)
             f.write('\n'.join(result) + '\n')
 
