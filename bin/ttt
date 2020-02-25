@@ -32,7 +32,7 @@ class TableData:
                     many_head = self.head
                     for i, row in enumerate(self.rows):
                         if marker_middle.search(row[0]):
-                            many_head = row[i + 1]
+                            many_head = rows[i + 1]
                     self.head = many_head
                     self.rows.insert(0, self.head)
 
