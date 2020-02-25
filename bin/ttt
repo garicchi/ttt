@@ -83,7 +83,8 @@ class TableData:
         pos = self.head.index(name)
         del self.head[pos]
         for row in self.rows:
-            del row[pos]
+            if pos < len(row):
+                del row[pos]
 
     def edit_data(self, key_column: str, key_data: str, edit_column: str, edit_data: str):
         key_pos = self.head.index(key_column)
