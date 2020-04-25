@@ -6,6 +6,7 @@ import copy
 import sys
 import re
 
+VERSION = "0.1.0"
 
 class TableData:
     def __init__(self):
@@ -449,7 +450,7 @@ def cmd_resolve(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='togai tsv tool')
+    parser = argparse.ArgumentParser(description=f'togai tsv tool v{VERSION}')
     subparsers = parser.add_subparsers(help='sub-commands')
     subparsers.required = True  # sub commandを指定してないときにhelpを表示するために必要
     subparsers.dest = 'SUB_COMMAND'  # sub commandを指定してないときにhelpを表示するために必要
