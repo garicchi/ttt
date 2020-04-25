@@ -388,10 +388,11 @@ def cmd_edit(args):
 def cmd_view(args):
     input_files: List[str] = args.INPUT_FILE
     columns: List[str] = args.column
-    sort: List[str] = args.sort
+    sort: str = args.sort
     reverse: bool = args.reverse
     on: str = args.on
     header: bool = args.header
+    interactive: bool = args.interactive
     output: str = args.output
     table = TableData()
 
@@ -409,6 +410,26 @@ def cmd_view(args):
                 on_col_our = table.head[0]
                 on_col_their = t.head[0]
             table.join(t, on_col_our=on_col_our, on_col_their=on_col_their)
+
+    if interactive:
+        input_str = ""
+        finish_str = "q"
+        input_dict = {}
+        while input_str != finish_str:
+            input_candidates = {str(k): x for k, x in enumerate(table.head) if str(k) not in input_dict.keys()}
+            input_candidates[finish_str] = 'finish to input'
+            print()
+            print(f'selected: [ {", ".join(input_dict.values())} ]')
+            for number, candidate in input_candidates.items():
+                print(f'[{number}] {candidate}')
+
+            input_str = input('please select column number to show: ')
+            if input_str in input_candidates.keys():
+                input_dict[input_str] = input_candidates[input_str]
+            else:
+                print(f'invalid input: {input_str}')
+        del input_dict[finish_str]
+        columns = list(input_dict.values())
 
     if columns:
         original_head = copy.deepcopy(table.head)
@@ -462,6 +483,7 @@ if __name__ == '__main__':
     parser_view.add_argument('-s', '--sort', type=str, required=False, help='column name for sorting rows')
     parser_view.add_argument('-r', '--reverse', action='store_true', help='order direction for sorting rows')
     parser_view.add_argument('--header', action='store_true', help='only show header')
+    parser_view.add_argument('-i', '--interactive', action='store_true', help='ask options before view')
     parser_view.add_argument('-o', '--output', type=str, required=False, help='file to output result')
     parser_view.add_argument('INPUT_FILE', type=str, nargs='+', help='tsv path to display(if spcify mutiple values, then join rows with condition of -on parameter)')
     parser_view.set_defaults(func=cmd_view)
