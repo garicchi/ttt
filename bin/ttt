@@ -94,8 +94,9 @@ class TableData:
         key_pos = self.head.index(key_column)
         edit_pos = self.head.index(edit_column)
         is_modify = False
+        key_regex = re.compile(key_data)
         for row in self.rows:
-            if row[key_pos] == key_data:
+            if key_regex.match(row[key_pos]):
                 row[edit_pos] = edit_data
                 is_modify = True
         if not is_modify:
@@ -481,7 +482,7 @@ if __name__ == '__main__':
 
     parser_edit_column = subparsers.add_parser('edit', help='edit value in tsv file')
     parser_edit_column.add_argument('-kc', '--key-column', type=str, required=True, help='key column name for editing value')
-    parser_edit_column.add_argument('-kd', '--key-data', type=str, required=True, help='key value for editing value')
+    parser_edit_column.add_argument('-kd', '--key-data', type=str, required=True, help='key value for editing value (regex str)')
     parser_edit_column.add_argument('-ec', '--edit-column', type=str, required=True, help='column name of editing column')
     parser_edit_column.add_argument('-ed', '--edit-data', type=str, required=True, help='value of editing')
     parser_edit_column.add_argument('-o', '--output', type=str, required=False, help='file to output result')
