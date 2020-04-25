@@ -42,18 +42,15 @@ class TableData:
                     self.head = many_head
                     self.rows.insert(0, [marker])
 
-    def save(self, file_path: Path, delim='\t', header_only: bool = False):
+    def save(self, file_path: Path, delim='\t'):
         with open(file_path, 'w') as f:
             result = [delim.join([f'{x}' for i, x in enumerate(self.head)])]
-            if header_only:
-                result = [result[0].replace(delim, '\t')]
-            else:
-                for row in self.rows:
-                    result_row = delim.join(
-                        [f'{row[i]}' for i, x in enumerate(self.head) if
-                         i < len(row)]
-                    )
-                    result.append(result_row)
+            for row in self.rows:
+                result_row = delim.join(
+                    [f'{row[i]}' for i, x in enumerate(self.head) if
+                     i < len(row)]
+                )
+                result.append(result_row)
             f.write('\n'.join(result) + '\n')
 
     def join(self, table, on_col_our: str, on_col_their: str):
@@ -321,7 +318,7 @@ class TableData:
         self.head = resolved_head
         self.rows = resolved_body
 
-    def get_format_str(self, delim='\t', header_only: bool = False):
+    def get_format_str(self, delim='\t'):
         '''
         コンソールに表示しやすいstr形式に変換する
         :param delim: 区切り文字
@@ -335,14 +332,11 @@ class TableData:
             max_cell_len.append(max(candidates))
         result = [delim.join(
             [f'{x:{max_cell_len[i]}}' for i, x in enumerate(self.head)])]
-        if header_only:
-            result = self.head
-        else:
-            for row in self.rows:
-                result_row = delim.join(
-                    [f'{row[i]:{max_cell_len[i]}}' for i, x in
-                     enumerate(self.head) if i < len(row)])
-                result.append(result_row)
+        for row in self.rows:
+            result_row = delim.join(
+                [f'{row[i]:{max_cell_len[i]}}' for i, x in
+                 enumerate(self.head) if i < len(row)])
+            result.append(result_row)
         return '\n'.join(result)
 
 
@@ -522,13 +516,20 @@ def cmd_view(args):
             file=sys.stderr)
         exit(1)
 
+    if header:
+        t = TableData()
+        t.head = ['column', 'example']
+        for i, h in enumerate(table.head):
+            t.rows.append([h, table.rows[0][i]])
+        table = t
+
     if output:
-        table.save(Path(output), header_only=header)
+        table.save(Path(output))
         print(f'save completed in {output}')
     elif less:
         show_table_with_less(table)
     else:
-        print(table.get_format_str(header_only=header))
+        print(table.get_format_str())
 
 
 def cmd_resolve(args):
@@ -583,7 +584,7 @@ if __name__ == '__main__':
                              help='column name for sorting rows')
     parser_view.add_argument('-r', '--reverse', action='store_true',
                              help='order direction for sorting rows')
-    parser_view.add_argument('--header', action='store_true',
+    parser_view.add_argument('-he', '--header', action='store_true',
                              help='only show header')
     parser_view.add_argument('-i', '--interactive', action='store_true',
                              help='ask options before view')
