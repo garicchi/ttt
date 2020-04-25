@@ -6,8 +6,10 @@ import copy
 import sys
 import re
 import subprocess
+import tempfile
 
-VERSION = "0.1.0"
+
+VERSION = "0.1.1"
 
 
 class TableData:
@@ -345,13 +347,11 @@ def show_table_with_less(table: TableData) -> None:
     less コマンドを使用してtable dataを表示する
     :param table:
     '''
-    p = subprocess.Popen(["less", "-S", "-i"], stdin=subprocess.PIPE)
-    try:
-        p.stdin.write(table.get_format_str().encode())
-    except BrokenPipeError:
-        print('finish less command')
-    finally:
-        p.stdin.close()
+
+    _, temp_p = tempfile.mkstemp()
+    with open(temp_p, 'w') as f:
+        f.write(table.get_format_str())
+    subprocess.run(f'less -S -i {temp_p}', shell=True)
 
 
 def cmd_add_column(args):
