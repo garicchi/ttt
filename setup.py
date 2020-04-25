@@ -5,7 +5,7 @@ with open('README.md') as f:
 
 setup(
     name="ttt",
-    version="0.1.0",
+    version="0.1.1",
     packages=['ttt'],
     description='Togai Tsv Tool',
     long_description=readme,
