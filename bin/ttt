@@ -5,6 +5,7 @@ from typing import List, Tuple
 import copy
 import sys
 import re
+import subprocess
 
 VERSION = "0.1.0"
 
@@ -313,12 +314,27 @@ class TableData:
         return '\n'.join(result)
 
 
+def show_table_with_less(table: TableData) -> None:
+    '''
+    less コマンドを使用してtable dataを表示する
+    :param table:
+    '''
+    p = subprocess.Popen(["less", "-S", "-i"], stdin=subprocess.PIPE)
+    try:
+        p.stdin.write(table.get_format_str().encode())
+    except BrokenPipeError:
+        print('finish less command')
+    finally:
+        p.stdin.close()
+
+
 def cmd_add_column(args):
     input_file: str = args.INPUT_FILE
     name: str = args.name
     default: str = args.default
     before: str = args.before
     output: str = args.output
+    less: bool = args.less
 
     table = TableData()
     table.load(input_file)
@@ -329,9 +345,15 @@ def cmd_add_column(args):
 
     table.add_column(name, default, before)
 
+    if less and output:
+        print(f'both less and output option cannot use together', file=sys.stderr)
+        exit(1)
+
     if output:
         table.save(Path(output))
         print(f'save completed in {output}')
+    elif less:
+        show_table_with_less(table)
     else:
         print(table.get_format_str())
 
@@ -340,6 +362,7 @@ def cmd_remove_column(args):
     input_file: str = args.INPUT_FILE
     name: str = args.name
     output: str = args.output
+    less: bool = args.less
 
     table = TableData()
     table.load(input_file)
@@ -350,9 +373,15 @@ def cmd_remove_column(args):
 
     table.remove_column(name)
 
+    if less and output:
+        print(f'both less and output option cannot use together', file=sys.stderr)
+        exit(1)
+
     if output:
         table.save(Path(output))
         print(f'save completed in {output}')
+    elif less:
+        show_table_with_less(table)
     else:
         print(table.get_format_str())
 
@@ -364,6 +393,7 @@ def cmd_edit(args):
     edit_column: str = args.edit_column
     edit_data: str = args.edit_data
     output: str = args.output
+    less: bool = args.less
 
     table = TableData()
     table.load(input_file)
@@ -378,9 +408,15 @@ def cmd_edit(args):
 
     table.edit_data(key_column, key_data, edit_column, edit_data)
 
+    if less and output:
+        print(f'both less and output option cannot use together', file=sys.stderr)
+        exit(1)
+
     if output:
         table.save(Path(output))
         print(f'save completed in {output}')
+    elif less:
+        show_table_with_less(table)
     else:
         print(table.get_format_str())
 
@@ -394,6 +430,7 @@ def cmd_view(args):
     header: bool = args.header
     interactive: bool = args.interactive
     output: str = args.output
+    less: bool = args.less
     table = TableData()
 
     for index, input_file in enumerate(input_files):
@@ -440,9 +477,15 @@ def cmd_view(args):
     if sort:
         table.sort(sort, reverse)
 
+    if less and output:
+        print(f'both less and output option cannot use together', file=sys.stderr)
+        exit(1)
+
     if output:
         table.save(Path(output), header_only=header)
         print(f'save completed in {output}')
+    elif less:
+        show_table_with_less(table)
     else:
         print(table.get_format_str(header_only=header))
 
@@ -451,6 +494,7 @@ def cmd_resolve(args):
     input_file: str = args.INPUT_FILE
     key: str = args.key
     output: str = args.output
+    less: bool = args.less
     table = TableData()
     table.load(input_file)
     if not table.is_conflict:
@@ -461,12 +505,17 @@ def cmd_resolve(args):
         print(f'{key} is not found in header', file=sys.stderr)
         exit(1)
 
-
     table.resolve(key)
+
+    if less and output:
+        print(f'both less and output option cannot use together', file=sys.stderr)
+        exit(1)
 
     if output:
         table.save(Path(output))
         print(f'save completed in {output}')
+    elif less:
+        show_table_with_less(table)
     else:
         print(table.get_format_str())
 
@@ -485,6 +534,7 @@ if __name__ == '__main__':
     parser_view.add_argument('--header', action='store_true', help='only show header')
     parser_view.add_argument('-i', '--interactive', action='store_true', help='ask options before view')
     parser_view.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_view.add_argument('-l', '--less', action='store_true', help='use less command to show output')
     parser_view.add_argument('INPUT_FILE', type=str, nargs='+', help='tsv path to display(if spcify mutiple values, then join rows with condition of -on parameter)')
     parser_view.set_defaults(func=cmd_view)
 
@@ -493,12 +543,14 @@ if __name__ == '__main__':
     parser_add_column.add_argument('-d', '--default', type=str, default='', help='default value of adding column')
     parser_add_column.add_argument('-b', '--before', type=str, required=False, help='column name of insert position(if not specify, then column add last position)')
     parser_add_column.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_add_column.add_argument('-l', '--less', action='store_true', help='use less command to show output')
     parser_add_column.add_argument('INPUT_FILE', type=str, help='tsv file to add column')
     parser_add_column.set_defaults(func=cmd_add_column)
 
     parser_remove_column = subparsers.add_parser('remove-column', help='remove column from tsv file')
     parser_remove_column.add_argument('-n', '--name', type=str, required=True, help='column name to remove')
     parser_remove_column.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_remove_column.add_argument('-l', '--less', action='store_true', help='use less command to show output')
     parser_remove_column.add_argument('INPUT_FILE', type=str, help='tsv path to remove column')
     parser_remove_column.set_defaults(func=cmd_remove_column)
 
@@ -508,12 +560,14 @@ if __name__ == '__main__':
     parser_edit_column.add_argument('-ec', '--edit-column', type=str, required=True, help='column name of editing column')
     parser_edit_column.add_argument('-ed', '--edit-data', type=str, required=True, help='value of editing')
     parser_edit_column.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_edit_column.add_argument('-l', '--less', action='store_true', help='use less command to show output')
     parser_edit_column.add_argument('INPUT_FILE', type=str, help='tsv path to edit data')
     parser_edit_column.set_defaults(func=cmd_edit)
 
     parser_resolve = subparsers.add_parser('resolve', help='convert conflict marker to human readable')
     parser_resolve.add_argument('-k', '--key', type=str, required=False, help='key column name that identifying unique row(if not specify, then use most left column)')
     parser_resolve.add_argument('-o', '--output', type=str, required=False, help='file to output result')
+    parser_resolve.add_argument('-l', '--less', action='store_true', help='use less command to show output')
     parser_resolve.add_argument('INPUT_FILE', type=str, help='tsv path of conflicting')
     parser_resolve.set_defaults(func=cmd_resolve)
 
