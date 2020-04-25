@@ -126,7 +126,15 @@ val1-1	val2-1	val3-1
 val2-1	val2-2	val2-3
 val3-1	val3-2	val3-3
 
+# -kc 変更する行を特定するキーカラム
+# -kd 変更する行を特定するキーのデータ(正規表現指定)
+# -ec kcとkdによって特定した行のどのカラムを編集するか
+# -ed 変更後の値
 $ ttt edit -kc col1 -kd 'val(1|2)' -ec col2 -ed null sample/sample.tsv
+col1       col2    col3  
+val1-1  null    val3-1
+val2-1  null    val2-3
+val3-1  val3-2  val3-3
 ```
 
 ## RESOLVE
