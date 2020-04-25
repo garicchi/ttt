@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from pathlib import Path
 import argparse
-from typing import List, Tuple
+from typing import List, Tuple, Union, Dict
 import copy
 import sys
 import re
@@ -44,32 +44,30 @@ class TableData:
                     self.head = many_head
                     self.rows.insert(0, [marker])
 
-    def save(self, file_path: Path, delim='\t', header_only: bool = False):
+    def save(self, file_path: Path, delim='\t'):
         with open(file_path, 'w') as f:
             result = [delim.join([f'{x}' for i, x in enumerate(self.head)])]
-            if header_only:
-                result = [result[0].replace(delim, '\t')]
-            else:
-                for row in self.rows:
-                    result_row = delim.join(
-                        [f'{row[i]}' for i, x in enumerate(self.head) if
-                         i < len(row)]
-                    )
-                    result.append(result_row)
+            for row in self.rows:
+                result_row = delim.join(
+                    [f'{row[i]}' for i, x in enumerate(self.head) if
+                     i < len(row)]
+                )
+                result.append(result_row)
             f.write('\n'.join(result) + '\n')
 
     def join(self, table, on_col_our: str, on_col_their: str):
+        if on_col_our not in self.head:
+            raise Exception(f'{on_col_our} column is not in table')
         on_col_our_pos = self.head.index(on_col_our)
+        if on_col_their not in table.head:
+            raise Exception(f'{on_col_their} column is not in table')
         on_col_their_pos = table.head.index(on_col_their)
         self.head += table.head
         for index, row in enumerate(self.rows):
             their_row = [x for x in table.rows if
                          x[on_col_their_pos] == row[on_col_our_pos]]
             if their_row:
-                if len(their_row) > 1:
-                    their_row.pop()
-                their_row = their_row[0]
-                row += their_row
+                row += their_row[0]
             else:
                 row += ['' for x in table.head]
 
@@ -115,6 +113,15 @@ class TableData:
             print(f'{key_data} is not found in {key_column} column',
                   file=sys.stderr)
             exit(1)
+
+    def get_header_data(self):
+        t = TableData()
+        t.head = ['column', 'example']
+        for i, h in enumerate(self.head):
+            val = [row[i] for row in self.rows if row[i]]
+            val = val[0] if val else ''
+            t.rows.append([h, val])
+        return t
 
     def _mark_conflict(self, key_pos: int, rev_1: str,
                        head_1: List[str], body_1: List[str],
@@ -323,7 +330,7 @@ class TableData:
         self.head = resolved_head
         self.rows = resolved_body
 
-    def get_format_str(self, delim='\t', header_only: bool = False):
+    def get_format_str(self, delim='\t'):
         '''
         コンソールに表示しやすいstr形式に変換する
         :param delim: 区切り文字
@@ -337,14 +344,11 @@ class TableData:
             max_cell_len.append(max(candidates))
         result = [delim.join(
             [f'{x:{max_cell_len[i]}}' for i, x in enumerate(self.head)])]
-        if header_only:
-            result = self.head
-        else:
-            for row in self.rows:
-                result_row = delim.join(
-                    [f'{row[i]:{max_cell_len[i]}}' for i, x in
-                     enumerate(self.head) if i < len(row)])
-                result.append(result_row)
+        for row in self.rows:
+            result_row = delim.join(
+                [f'{row[i]:{max_cell_len[i]}}' for i, x in
+                 enumerate(self.head) if i < len(row)])
+            result.append(result_row)
         return '\n'.join(result)
 
 
@@ -358,6 +362,42 @@ def show_table_with_less(table: TableData) -> None:
     with open(temp_p, 'w') as f:
         f.write(table.get_format_str())
     subprocess.run(f'less -S -i {temp_p}', shell=True)
+
+
+def choice_interactive_selection(candidates: List[Tuple[str, str]],
+                                 prompt: str = 'please select number',
+                                 max_choices: int = None
+                                 ) -> List[str]:
+    input_str = ''
+    clear_str = 'c'
+    finish_str = 'q'
+    input_dict = {}
+    while True:
+        input_candidates = {str(k): x for k, x in enumerate(candidates) if
+                            str(k) not in input_dict.keys()}
+        input_candidates[clear_str] = ['', 'clear selection']
+        input_candidates[finish_str] = ['', 'finish to input']
+        choice_num_str = ''
+        if max_choices:
+            choice_num_str = f'{len(input_dict)}/{max_choices}'
+        print()
+        print(f'selected {choice_num_str}:'
+              f' [ {", ".join([x[0] for x in input_dict.values()])} ]')
+        for number, candidate in input_candidates.items():
+            print(f'[{number}] {candidate[1]}')
+
+        input_str = input(f'{prompt}: ')
+        if input_str == clear_str:
+            input_dict.clear()
+        elif input_str == finish_str:
+            break
+        elif input_str in input_candidates.keys():
+            input_dict[input_str] = input_candidates[input_str]
+        else:
+            print(f'invalid input: {input_str}')
+        if max_choices and len(input_dict) >= max_choices:
+            break
+    return [x[0] for x in input_dict.values()]
 
 
 def cmd_add_column(args):
@@ -464,48 +504,45 @@ def cmd_view(args):
     columns: List[str] = args.column
     sort: str = args.sort
     reverse: bool = args.reverse
-    on: str = args.on
+    on_str: str = args.on
     header: bool = args.header
     interactive: bool = args.interactive
     output: str = args.output
     less: bool = args.less
     table = TableData()
 
+    on: Union[list, List[str]] = [] if on_str is None else on_str.split('=')
     for index, input_file in enumerate(input_files):
         if index == 0:
             table.load(Path(input_file))
         else:
             t = TableData()
             t.load(Path(input_file))
+            if interactive:
+                heads = [(x[0], x[0] + '\tex. ' + x[1]) for x in
+                         table.get_header_data().rows]
+                heads += [(x[0], x[0] + '\tex. ' + x[1]) for x in
+                          t.get_header_data().rows]
+                on = choice_interactive_selection(
+                    heads,
+                    prompt='please select column number for join',
+                    max_choices=len(input_files)
+                )
             if on:
-                on_list = on.split('=')
-                on_col_our = on_list[0]
-                on_col_their = on_list[index]
+                on_col_our = on[0]
+                on_col_their = on[index]
             else:
                 on_col_our = table.head[0]
                 on_col_their = t.head[0]
             table.join(t, on_col_our=on_col_our, on_col_their=on_col_their)
 
     if interactive:
-        input_str = ""
-        finish_str = "q"
-        input_dict = {}
-        while input_str != finish_str:
-            input_candidates = {str(k): x for k, x in enumerate(table.head) if
-                                str(k) not in input_dict.keys()}
-            input_candidates[finish_str] = 'finish to input'
-            print()
-            print(f'selected: [ {", ".join(input_dict.values())} ]')
-            for number, candidate in input_candidates.items():
-                print(f'[{number}] {candidate}')
-
-            input_str = input('please select column number to show: ')
-            if input_str in input_candidates.keys():
-                input_dict[input_str] = input_candidates[input_str]
-            else:
-                print(f'invalid input: {input_str}')
-        del input_dict[finish_str]
-        columns = list(input_dict.values())
+        choices = [(x[0], x[0] + '\tex. ' + x[1]) for x in
+                   table.get_header_data().rows]
+        columns = choice_interactive_selection(
+            choices,
+            prompt='please select column number to show'
+        )
 
     if columns:
         original_head = copy.deepcopy(table.head)
@@ -522,13 +559,16 @@ def cmd_view(args):
             file=sys.stderr)
         exit(1)
 
+    if header:
+        table = table.get_header_data()
+
     if output:
-        table.save(Path(output), header_only=header)
+        table.save(Path(output))
         print(f'save completed in {output}')
     elif less:
         show_table_with_less(table)
     else:
-        print(table.get_format_str(header_only=header))
+        print(table.get_format_str())
 
 
 def cmd_resolve(args):
@@ -583,7 +623,7 @@ if __name__ == '__main__':
                              help='column name for sorting rows')
     parser_view.add_argument('-r', '--reverse', action='store_true',
                              help='order direction for sorting rows')
-    parser_view.add_argument('--header', action='store_true',
+    parser_view.add_argument('-he', '--header', action='store_true',
                              help='only show header')
     parser_view.add_argument('-i', '--interactive', action='store_true',
                              help='ask options before view')
