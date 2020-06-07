@@ -447,7 +447,7 @@ class TableData:
         コンソールに表示しやすいstr形式に変換する
         :return:
         '''
-        delim = ' '
+        delim = '\t'
         max_cell_len = []
         for i, h in enumerate(self.head):
             # カラムの最大文字数を計算
