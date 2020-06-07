@@ -33,21 +33,12 @@ pip install git+https://github.com/garicchi/ttt.git
 
 ## VIEW
 
-sample.tsv
-```
-col1	col2	col3
-val1-1	val2-1	val3-1
-val2-1	val2-2	val2-3
-val3-1	val3-2	val3-3
-```
+tsvテーブルを整形表示
 
-tsvテーブルを表示
+![](img/view.gif)
+
 ```
 $ ttt view sample/sample.tsv 
-col1  	col2  	col3  
-val1-1	val2-1	val3-1
-val2-1	val2-2	val2-3
-val3-1	val3-2	val3-3
 ```
 
 ヘッダーを表示
@@ -60,18 +51,20 @@ col3
 ```
 
 カラムを絞り込み
+![](img/filter_col.gif)
 ```
 $ ttt view -c col2 -c col3 sample/sample.tsv 
-col2  	col3  
-val2-1	val3-1
-val2-2	val2-3
-val3-2	val3-3
 ```
 
 インタラクティブにカラムを絞り込む
+![](img/interactive.gif)
 ```
 $ ttt view -i sample/sample.tsv
 ```
+
+カラムのソート
+
+![](img/sort_col.gif)
 
 昇順ソート
 ```
@@ -93,13 +86,11 @@ val1-1	val2-1	val3-1
 
 テーブルのjoin (left join)
 
-sample02.tsv
-```
-other1	other2
-val1-1	other-2-1
-val2-1	other-2-2
-val3-1	other-2-3
-```
+ののキーを比較し、left joinを行います
+
+![](img/join.gif)
+
+`-on` でキーカラムを指定できます。指定しない場合一番左のカラムがキーカラムになります
 ```
 $ ttt view -on col1=other1 sample/sample.tsv sample/sample02.tsv 
 col1  	col2  	col3  	other1	other2   
@@ -107,6 +98,9 @@ val1-1	val2-1	val3-1	val1-1	other-2-1
 val2-1	val2-2	val2-3	val2-1	other-2-2
 val3-1	val3-2	val3-3	val3-1	other-2-3
 ```
+
+結果の出力
+![](img/output.gif)
 
 結果のtsv書き出し
 ```
@@ -121,6 +115,8 @@ $ ttt view -l sample/sample.tsv
 
 ## EDIT
 tsvの値を変更します
+
+![](img/edit.gif)
 
 ```
 $ ttt view sample/sample.tsv
@@ -143,9 +139,14 @@ val3-1  val3-2  val3-3
 ## RESOLVE
 コンフリクトしたtsvをわかりやすいマーカーに変えます
 
-sample.tsv(コンフリクト状態)
+カラムの変更や、同一キーはセル判定するなどに対応できます
 
-HEADで行が増え、test/01でカラムが増えた状態
+同じキーの値がコンフリクトしている場合
+![](img/resolve01.gif)
+
+カラムに変更が合った場合
+![](img/resolve02.gif)
+
 ```
 <<<<<<< HEAD
 col1	col2	col3
