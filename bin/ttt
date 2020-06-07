@@ -7,13 +7,16 @@ import sys
 import re
 import subprocess
 import tempfile
-from enum import Enum
 import unicodedata
 
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
+
 
 class ResolvedBlockOneline:
+    """
+    1行で解決できるパターンのコンフリクトデータ構造
+    """
     resolve_type = ''
     body = [[]]
 
@@ -27,7 +30,11 @@ class ResolvedBlockOneline:
     def to_rows(self):
         return self.body
 
+
 class ResolvedBlockMultiline:
+    """
+    複数行で解決できるパターンのコンフリクトデータ構造
+    """
     resolve_type = ''
     top_marker = []
     top_body = [[]]
@@ -205,14 +212,13 @@ class TableData:
 
         # body1の1行に対し、キーが一致しているbody2を比較していき、
         # コンフリクトを解決していく
-        resolved_rows = []
+        #   コンフリクト解決単位でresolved_blockとして追加していく
+        resolved_blocks = []
         for body_1_row in body_1:
             body_1_key = body_1_row[key_pos]
 
             is_find = False
             for body_2_row in body_2:
-                if body_1_key == '7818600':
-                    a = 0
                 body_2_key = body_2_row[key_pos]
                 if body_1_key == body_2_key:
                     # 行の値が異なるパターン(一致するキーがあった)
@@ -261,7 +267,7 @@ class TableData:
 
                     if is_different_row:
                         # セルの値が違うならコンフリクトマーカーをつける
-                        resolved_rows.append(ResolvedBlockMultiline(
+                        resolved_blocks.append(ResolvedBlockMultiline(
                             'add_col',
                             [f'<<<<<<< {many_col_rev}'],
                             [many_col_row],
@@ -271,11 +277,11 @@ class TableData:
                         ))
                     else:
                         # セルの値が一致しているならそのまま返す
-                        resolved_rows.append(ResolvedBlockOneline('same_row', [resolved_row]))
+                        resolved_blocks.append(ResolvedBlockOneline('same_row', [resolved_row]))
                     break
             if not is_find:
                 # 行追加パターン(行が多い方のキーが少ない方になかった)
-                resolved_rows.append(ResolvedBlockMultiline(
+                resolved_blocks.append(ResolvedBlockMultiline(
                     'add_row_1',
                     [f'<<<<<<< {rev_1}'],
                     [body_1_row],
@@ -295,7 +301,7 @@ class TableData:
                     is_find = True
             if not is_find:
                 # 行追加パターン(行が多い方のキーが少ない方になかった)
-                resolved_rows.append(ResolvedBlockMultiline(
+                resolved_blocks.append(ResolvedBlockMultiline(
                     'add_row_2',
                     [f'<<<<<<< {rev_1}'],
                     [[]],
@@ -304,11 +310,11 @@ class TableData:
                     [f'>>>>>>> {rev_2}']
                 ))
 
+        # 連続した同じresolved_block同士はつなぎ合わせて
+        # resolved_rowsを作っていく
         _resolved_rows = []
-
         temp_block = None
-
-        for index, block in enumerate(resolved_rows):
+        for index, block in enumerate(resolved_blocks):
             if not temp_block:
                 temp_block = block
                 continue
