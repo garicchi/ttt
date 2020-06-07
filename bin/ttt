@@ -8,9 +8,62 @@ import sys
 import re
 import subprocess
 import tempfile
+import unicodedata
 
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
+
+
+class ResolvedBlockOneline:
+    """
+    1行で解決できるパターンのコンフリクトデータ構造
+    """
+    resolve_type = ''
+    body = [[]]
+
+    def __init__(self, resolve_type, body):
+        self.resolve_type = resolve_type
+        self.body = body
+
+    def concat(self, block):
+        self.body.extend(block.body)
+
+    def to_rows(self):
+        return self.body
+
+
+class ResolvedBlockMultiline:
+    """
+    複数行で解決できるパターンのコンフリクトデータ構造
+    """
+    resolve_type = ''
+    top_marker = []
+    top_body = [[]]
+    middle_marker = []
+    bottom_body = [[]]
+    bottom_marker = []
+
+    def __init__(self, resolve_type, top_marker, top_body, middle_marker,
+                 bottom_body, bottom_marker):
+        self.resolve_type = resolve_type
+        self.top_marker = top_marker
+        self.top_body = top_body
+        self.middle_marker = middle_marker
+        self.bottom_body = bottom_body
+        self.bottom_marker = bottom_marker
+
+    def concat(self, block):
+        self.top_body.extend(block.top_body)
+        self.bottom_body.extend(block.bottom_body)
+
+    def to_rows(self):
+        result = []
+        result.append(self.top_marker)
+        result.extend([x for x in self.top_body if x])
+        result.append(self.middle_marker)
+        result.extend([x for x in self.bottom_body if x])
+        result.append(self.bottom_marker)
+        return result
 
 
 class TableData:
@@ -25,8 +78,8 @@ class TableData:
             lines = f.readlines()
             self.rows = []
             self.is_conflict = False
-            for l in lines:
-                cells = l.rstrip('\n').split(delim)
+            for line in lines:
+                cells = line.rstrip('\n').split(delim)
                 if ''.join(cells) == '=======':
                     self.is_conflict = True
                 self.rows.append(cells)
@@ -134,17 +187,6 @@ class TableData:
         :return:
         '''
         # 行が多い方のデータを判定する
-        many_body = body_1
-        less_body = body_2
-        many_rev = rev_1
-        less_rev = rev_2
-        if len(body_1) < len(body_2):
-            many_body = body_2
-            less_body = body_1
-            many_rev = rev_2
-            less_rev = rev_1
-
-        less_keys = [x[key_pos] for x in less_body]
 
         many_col_head = head_1
         less_col_head = head_2
@@ -169,25 +211,29 @@ class TableData:
             many_cur += 1
             less_cur += 1
 
-        # 行数が多い方の1行に対し、キーが一致している行が少ない方を比較していき、
+        # body1の1行に対し、キーが一致しているbody2を比較していき、
         # コンフリクトを解決していく
-        resolved_rows = []
-        for many_body_row in many_body:
-            many_key = many_body_row[key_pos]
-            for less_body_row in less_body:
-                less_key = less_body_row[key_pos]
-                if many_key == less_key:
+        #   コンフリクト解決単位でresolved_blockとして追加していく
+        resolved_blocks = []
+        for body_1_row in body_1:
+            body_1_key = body_1_row[key_pos]
+
+            is_find = False
+            for body_2_row in body_2:
+                body_2_key = body_2_row[key_pos]
+                if body_1_key == body_2_key:
                     # 行の値が異なるパターン(一致するキーがあった)
+                    is_find = True
                     # カラムはどちらが多いかを把握
-                    many_col_rev = many_rev
-                    less_col_rev = less_rev
-                    many_col_row = many_body_row
-                    less_col_row = less_body_row
-                    if len(many_body_row) < len(less_body_row):
-                        many_col_rev = less_rev
-                        less_col_rev = many_rev
-                        many_col_row = less_body_row
-                        less_col_row = many_body_row
+                    many_col_rev = rev_1
+                    less_col_rev = rev_2
+                    many_col_row = body_1_row
+                    less_col_row = body_2_row
+                    if len(body_1_row) < len(body_2_row):
+                        many_col_rev = rev_2
+                        less_col_rev = rev_1
+                        many_col_row = body_2_row
+                        less_col_row = body_1_row
 
                     # カラムの数が違う場合、カラム追加のコンフリクトマーカーを置く
                     resolved_row = []
@@ -203,7 +249,9 @@ class TableData:
                                 f'<< {many_col_row[i]} >> [{many_col_rev}]'
                             )
                             continue
-                        resolved_row.append(less_col_row[less_cur])
+                        resolved_row.append(
+                            less_col_row[less_cur]
+                        )
                         less_cur += 1
                     # 各セルの値が異なるかどうか判定
                     is_different_row = False
@@ -220,23 +268,67 @@ class TableData:
 
                     if is_different_row:
                         # セルの値が違うならコンフリクトマーカーをつける
-                        resolved_rows.append([f'<<<<<<< {many_col_rev}'])
-                        resolved_rows.append(many_col_row)
-                        resolved_rows.append([f'======='])
-                        resolved_rows.append(resolved_row)
-                        resolved_rows.append([f'>>>>>>> {less_col_rev}'])
+                        resolved_blocks.append(ResolvedBlockMultiline(
+                            'add_col',
+                            [f'<<<<<<< {many_col_rev}'],
+                            [many_col_row],
+                            [f'======='],
+                            [resolved_row],
+                            [f'>>>>>>> {less_col_rev}']
+                        ))
                     else:
                         # セルの値が一致しているならそのまま返す
-                        resolved_rows.append(resolved_row)
+                        resolved_blocks.append(
+                            ResolvedBlockOneline('same_row', [resolved_row]))
                     break
-                elif many_key not in less_keys:
-                    # 行追加パターン(行が多い方のキーが少ない方になかった)
-                    resolved_rows.append([f'<<<<<<< {less_rev}'])
-                    resolved_rows.append([f'======='])
-                    resolved_rows.append(many_body_row)
-                    resolved_rows.append([f'>>>>>>> {many_rev}'])
-                    break
+            if not is_find:
+                # 行追加パターン(行が多い方のキーが少ない方になかった)
+                resolved_blocks.append(ResolvedBlockMultiline(
+                    'add_row_1',
+                    [f'<<<<<<< {rev_1}'],
+                    [body_1_row],
+                    [f'======='],
+                    [[]],
+                    [f'>>>>>>> {rev_2}']
+                ))
 
+        # body2の行に対しbody1の行を比較していき、body2にあってbody1にない行を追加する
+        #   body1とbody2でキーが一致している場合の処理は上でやっているのでやらない
+        for body_2_row in body_2:
+            body_2_key = body_2_row[key_pos]
+            is_find = False
+            for body_1_row in body_1:
+                body_1_key = body_1_row[key_pos]
+                if body_2_key == body_1_key:
+                    is_find = True
+            if not is_find:
+                # 行追加パターン(行が多い方のキーが少ない方になかった)
+                resolved_blocks.append(ResolvedBlockMultiline(
+                    'add_row_2',
+                    [f'<<<<<<< {rev_1}'],
+                    [[]],
+                    [f'======='],
+                    [body_2_row],
+                    [f'>>>>>>> {rev_2}']
+                ))
+
+        # 連続した同じresolved_block同士はつなぎ合わせて
+        # resolved_rowsを作っていく
+        _resolved_rows = []
+        temp_block = None
+        for index, block in enumerate(resolved_blocks):
+            if not temp_block:
+                temp_block = block
+                continue
+            if block.resolve_type == temp_block.resolve_type:
+                temp_block.concat(block)
+            else:
+                _resolved_rows.extend(temp_block.to_rows())
+                temp_block = block
+        if temp_block:
+            _resolved_rows.extend(temp_block.to_rows())
+
+        resolved_rows = _resolved_rows
         return many_col_head, resolved_rows
 
     def resolve(self, key=None):
@@ -331,23 +423,46 @@ class TableData:
         self.head = resolved_head
         self.rows = resolved_body
 
-    def get_format_str(self, delim='\t'):
+    def _count_str_len(self, s) -> int:
         '''
-        コンソールに表示しやすいstr形式に変換する
-        :param delim: 区切り文字
-        :param header_only: ヘッダーのみ表示する場合
+        2バイト文字を考慮した文字数カウント
+        :param s:
         :return:
         '''
+        count = 0
+        for c in s:
+            r = unicodedata.east_asian_width(c)
+            if r == 'H' or r == 'Na' or r == 'N':
+                count += 1
+            else:
+                count += 2
+        return count
+
+    def _ljust(self, s, length, gap=' ') -> str:
+        gap_num = length - self._count_str_len(s)
+        gap_str = gap * gap_num if gap_num else ''
+        return s + gap_str
+
+    def get_format_str(self):
+        '''
+        コンソールに表示しやすいstr形式に変換する
+        :return:
+        '''
+        delim = '\t'
         max_cell_len = []
         for i, h in enumerate(self.head):
-            candidates = [len(h)]
-            candidates += [len(row[i]) for row in self.rows if i < len(row)]
+            # カラムの最大文字数を計算
+            candidates = [self._count_str_len(h)] + [
+                self._count_str_len(row[i]) for row in self.rows if
+                i < len(row)]
             max_cell_len.append(max(candidates))
+
         result = [delim.join(
-            [f'{x:{max_cell_len[i]}}' for i, x in enumerate(self.head)])]
+            [self._ljust(x, max_cell_len[i], ' ') for i, x in
+             enumerate(self.head)])]
         for row in self.rows:
             result_row = delim.join(
-                [f'{row[i]:{max_cell_len[i]}}' for i, x in
+                [self._ljust(row[i], max_cell_len[i], ' ') for i, x in
                  enumerate(self.head) if i < len(row)])
             result.append(result_row)
         return '\n'.join(result)
