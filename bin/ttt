@@ -77,8 +77,8 @@ class TableData:
             lines = f.readlines()
             self.rows = []
             self.is_conflict = False
-            for l in lines:
-                cells = l.rstrip('\n').split(delim)
+            for line in lines:
+                cells = line.rstrip('\n').split(delim)
                 if ''.join(cells) == '=======':
                     self.is_conflict = True
                 self.rows.append(cells)
