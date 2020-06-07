@@ -25,6 +25,9 @@ optional arguments:
 
 required python 3.6 or later
 ```
+# if you use windows
+export PYTHONUTF8=1
+
 pip install git+https://github.com/garicchi/ttt.git
 ```
 
