@@ -33,7 +33,7 @@ pip install git+https://github.com/garicchi/ttt.git
 
 ## VIEW
 
-tsvテーブルを整形表示
+#### tsvテーブルを整形表示
 
 ![](img/view.gif)
 
@@ -41,7 +41,7 @@ tsvテーブルを整形表示
 $ ttt view sample/sample.tsv 
 ```
 
-ヘッダーを表示
+#### ヘッダーを表示
 
 ```
 $ ttt view --header sample/sample.tsv 
@@ -50,19 +50,19 @@ col2
 col3  
 ```
 
-カラムを絞り込み
+#### カラムを絞り込み
 ![](img/filter_col.gif)
 ```
 $ ttt view -c col2 -c col3 sample/sample.tsv 
 ```
 
-インタラクティブにカラムを絞り込む
+#### インタラクティブにカラムを絞り込む
 ![](img/interactive.gif)
 ```
 $ ttt view -i sample/sample.tsv
 ```
 
-カラムのソート
+#### カラムのソート
 
 ![](img/sort_col.gif)
 
@@ -84,9 +84,9 @@ val2-1	val2-2	val2-3
 val1-1	val2-1	val3-1
 ```
 
-テーブルのjoin (left join)
+#### テーブルのjoin (left join)
 
-ののキーを比較し、left joinを行います
+行ごとのキーを比較し、left joinを行います
 
 ![](img/join.gif)
 
@@ -99,7 +99,7 @@ val2-1	val2-2	val2-3	val2-1	other-2-2
 val3-1	val3-2	val3-3	val3-1	other-2-3
 ```
 
-結果の出力
+#### 結果の出力
 ![](img/output.gif)
 
 結果のtsv書き出し
