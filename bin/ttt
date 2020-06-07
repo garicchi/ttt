@@ -418,9 +418,9 @@ class TableData:
         '''
         コンソールに表示しやすいstr形式に変換する
         :param delim: 区切り文字
-        :param header_only: ヘッダーのみ表示する場合
         :return:
         '''
+        delim = ''
         max_cell_len = []
         for i, h in enumerate(self.head):
             candidates = [len(h)]
