@@ -42,7 +42,8 @@ class ResolvedBlockMultiline:
     bottom_body = [[]]
     bottom_marker = []
 
-    def __init__(self, resolve_type, top_marker, top_body, middle_marker, bottom_body, bottom_marker):
+    def __init__(self, resolve_type, top_marker, top_body, middle_marker,
+                 bottom_body, bottom_marker):
         self.resolve_type = resolve_type
         self.top_marker = top_marker
         self.top_body = top_body
@@ -175,7 +176,6 @@ class TableData:
             t.rows.append([h, val])
         return t
 
-
     def _mark_conflict(self, key_pos: int, rev_1: str,
                        head_1: List[str], body_1: List[str],
                        rev_2: str, head_2: List[str],
@@ -277,7 +277,8 @@ class TableData:
                         ))
                     else:
                         # セルの値が一致しているならそのまま返す
-                        resolved_blocks.append(ResolvedBlockOneline('same_row', [resolved_row]))
+                        resolved_blocks.append(
+                            ResolvedBlockOneline('same_row', [resolved_row]))
                     break
             if not is_find:
                 # 行追加パターン(行が多い方のキーが少ない方になかった)
@@ -437,8 +438,7 @@ class TableData:
         return count
 
     def _ljust(self, s, length, gap=' ') -> str:
-        l = self._count_str_len(s)
-        gap_num = length - l
+        gap_num = length - self._count_str_len(s)
         gap_str = gap * gap_num if gap_num else ''
         return s + gap_str
 
@@ -451,11 +451,14 @@ class TableData:
         max_cell_len = []
         for i, h in enumerate(self.head):
             # カラムの最大文字数を計算
-            candidates = [self._count_str_len(h)] + [self._count_str_len(row[i]) for row in self.rows if i < len(row)]
+            candidates = [self._count_str_len(h)] + [
+                self._count_str_len(row[i]) for row in self.rows if
+                i < len(row)]
             max_cell_len.append(max(candidates))
 
         result = [delim.join(
-            [self._ljust(x, max_cell_len[i], ' ') for i, x in enumerate(self.head)])]
+            [self._ljust(x, max_cell_len[i], ' ') for i, x in
+             enumerate(self.head)])]
         for row in self.rows:
             result_row = delim.join(
                 [self._ljust(row[i], max_cell_len[i], ' ') for i, x in
